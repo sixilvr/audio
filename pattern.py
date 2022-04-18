@@ -6,10 +6,12 @@ from . import utils
 class Pattern(Sound):
     def __init__(self, bpm = 120, beats = 8, samplerate = 44100):
         self.bpm = bpm
-        self.beats = beats
         self.samplerate = samplerate
-        self.data = np.zeros(int(samplerate * 60 / bpm * beats), dtype = np.float32)
-        self.__backup = np.zeros(0, dtype = np.float32)
+        self.data = np.zeros(int(round(60 * samplerate * beats / bpm)), dtype = np.float32)
+
+    @property
+    def beats(self):
+        return round(self.length * self.bpm / self.samplerate / 60, 3)
 
     def place(self, sound, beat = 1., multiplier = 1., stretch = 1., cut = False):
         place_func = self.set_at if cut else self.add
@@ -23,9 +25,9 @@ class Pattern(Sound):
         for i in range(amount):
             self.place(sound, beat - 1. + i * interval, multiplier)
 
-    def place_pattern(self, sound, pattern, root_note = "C4", cut = False, beat_size = .5, multiplier = 1., rest_char = 0):
+    def place_pattern(self, sound, pattern, beat_size = .5, cut = False, multiplier = 1., root_note = "C4", rest_char = 0):
         if len(pattern) * beat_size != self.beats:
-            print("Invalid pattern length")
+            print("Invalid pattern length", self.beats, len(pattern) * beat_size, self.length, self.bpm)
             return
         for i in range(int(self.beats / beat_size)):
             if pattern[i] != rest_char:

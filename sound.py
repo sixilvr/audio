@@ -1,4 +1,5 @@
-#todo: amplitude to property; Reverb/UI
+#todo: Reverb/UI, autotune, better error messages
+
 import os
 import warnings
 if os.name == "nt":
@@ -14,21 +15,25 @@ from scipy import signal as sig
 tau = np.pi * 2
 
 class Sound:
-    def __init__(self, length = 0, samplerate = 44100, file = None, data = None):
+    def __init__(self, length = 44100, file = None, data = None, samplerate = 44100):
         if file:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self.samplerate, self.data = wavfile.read(file, True)
-            self.filename = file
+            self.read(file)
         elif data is not None:
-            self.data = np.copy(data)
+            self.data = data.astype(np.float32)
             self.samplerate = samplerate
         else:
-            self.data = np.zeros(length)
+            self.data = np.zeros(length, dtype = np.float32)
             self.samplerate = samplerate
 
     def __getitem__(self, key):
-        return self.data[key]
+        if isinstance(key, int):
+            return self.data[key]
+        elif isinstance(key, float):
+            whole, frac = divmod(key, 1)
+            whole = int(whole)
+            return (1 - frac) * self.data[whole] + frac * self.data[whole + 1]
+        else:
+            return 0.
 
     def __setitem__(self, key, value):
         self.data[key] = value
@@ -43,31 +48,38 @@ class Sound:
     def read(self, filename):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            self.samplerate, self.data = wavfile.read(filename, True)
+            self.samplerate, self.data = wavfile.read(filename + (".wav" if not filename.endswith(".wav") else ""))
+        self.data = self.data.astype(np.float32)
+        if self.data.ndim != 1:
+            print("Warning: flattening channels for", filename)
+            self.data = np.sum(self.data, 1)
 
-    def save(self, filename):
+    def save(self, filename, clip = False):
         if not filename.endswith(".wav"):
             filename += ".wav"
+        if clip:
+            self.distort(1.)
         wavfile.write(filename, self.samplerate, self.data.astype(np.float32))
 
-    def play(self):
+    def play(self, sync = True):
         if os.name == "nt":
             self.save("__temp__.wav")
-            winsound.PlaySound("__temp__.wav", winsound.SND_FILENAME)
+            utils.playfile("__temp__.wav", sync)
             os.remove("__temp__.wav")
         else:
             print("Can only play on Windows")
 
     def show(self):
         if os.name != "nt":
-            print("Can only show on windows")
+            print("Can only show on Windows")
             return
         plt.title("Sound")
         plt.xlabel("Time")
         plt.ylabel("Amplitude")
         plt.ylim(-1.1, 1.1)
         time = self.length / self.samplerate
-        plt.plot(self.data, linewidth = 1)
+        time_axis = np.linspace(0, time, self.length)
+        plt.plot(time_axis, self.data, linewidth = .75)
         plt.plot([0., time], [0., 0.], "k--", linewidth = .5)
         plt.plot([0., time], [1., 1.], "r--", linewidth = .5)
         plt.plot([0., time], [-1., -1.], "r--", linewidth = .5)
@@ -76,9 +88,18 @@ class Sound:
     def fft(self):
         return rfft(self.data)
 
-    def show_fft(self):
+    @property
+    def fundamental(self):
         transform = np.abs(self.fft())
-        plt.plot(transform)
+        return np.argmax(transform) / transform.size * self.samplerate / 2
+
+    def show_fft(self):
+        transform = np.abs(self.fft()) / (self.length * 2)
+        time_axis = np.linspace(0, 22050, transform.size)
+        plt.xlabel("Frequency")
+        plt.ylabel("Amplitude")
+        #plt.xscale("log")
+        plt.plot(time_axis, transform)
         plt.show()
 
     def ifft(self, transform):
@@ -88,11 +109,12 @@ class Sound:
     def amplitude(self):
         return np.maximum(self.data.max(), -self.data.min())
 
+    @property
     def rms(self):
         return np.sqrt(np.mean(np.square(self.data)))
 
     def sine(self, frequency, amplitude = 1.):
-        self.data += np.sin(np.linspace(0, frequency * tau, self.length)) * amplitude
+        self.data += np.sin(np.linspace(0, frequency * tau * self.length / self.samplerate, self.length)) * amplitude
 
     def square(self, frequency, amplitude = 1.):
         self.data += sig.square(np.arange(self.length) * tau * frequency / self.samplerate) * amplitude
@@ -112,8 +134,24 @@ class Sound:
         else:
             self.data = self.data[:newsize]
 
+    def append(self, sound2):
+        self.data = np.append(self.data, sound2.data)
+
     def mute(self):
         self.data[:] = 0.
+
+    def trim_silence(self, threshold = 0.005):
+        start_index = 0
+        for i in range(1, self.length):
+            if np.abs(self.data[i]) > threshold:
+                start_index = i - 1
+                break
+        end_index = self.length - 1
+        for i in range(self.length - 2, 0, -1):
+            if np.abs(self.data[i] > threshold):
+                end_index = i + 1
+                break
+        self.data = self.data[start_index:end_index]
 
     def set_at(self, sound2, offset = 0, multiplier = 1.):
         limit = np.minimum(sound2.length, self.length - offset)
@@ -121,7 +159,10 @@ class Sound:
 
     def add(self, sound2, offset = 0, multiplier = 1.):
         limit = np.minimum(sound2.length, self.length - offset)
-        self.data[offset:offset + limit] += sound2.data[:limit] * multiplier
+        try:
+            self.data[offset:offset + limit] += sound2.data[:limit] * multiplier
+        except:
+            print(self.length, offset, limit)
 
     def invert(self):
         self.data = -self.data
@@ -180,3 +221,43 @@ class Sound:
             return
         sos = sig.butter(order, cutoff, type_, output = "sos", fs = self.samplerate)
         self.data = sig.sosfilt(sos, self.data)
+
+    def filter_curve(self, response):
+        if isinstance(response, Sound):
+            kernel = response.ifft()
+        else:
+            kernel = Sound()
+            kernel.ifft(response)
+        self.convolve(kernel)
+
+    def autotune(self, window_size = 7000):
+        out = Sound(self.length)
+        sliced = np.array_split(self.data, np.ceil(self.length / window_size))
+        for i, part in enumerate(sliced):
+            s = Sound(data = part)
+            freq = s.fundamental
+            newfreq = utils.nearest(freq)
+            factor = newfreq / freq
+            s.stretch(factor)
+            s.fade(end_index = 50, start_amp = 0, end_amp = 1)
+            s.fade(start_index = s.length - 50)
+            out.set_at(s, window_size * i)
+        return out
+
+    def vocode(self, window_size = 7000, fade = 50):
+        #https://stackoverflow.com/a/23734295
+        out = Sound(self.length)
+        sliced = np.array_split(self.data, np.ceil(self.length / window_size))
+        for i, part in enumerate(sliced):
+            s = Sound(data = part)
+            t = s.fft()
+            m = np.argmax(t)
+            t[:m] = 0
+            t[m + 1:] = 0
+            s.ifft(t)
+            s.fade(end_index = fade, start_amp = 0, end_amp = 1)
+            s.fade(start_index = s.length - fade)
+            out.set_at(s, window_size * i)
+        return out
+
+from audio import utils
