@@ -25,6 +25,9 @@ class Sound:
             self.data = np.zeros(length, dtype = np.float32)
             self.samplerate = samplerate
 
+    def __repr__(self):
+        return f"Sound(length = {self.length}, samplerate = {self.samplerate})"
+
     def __getitem__(self, key):
         if isinstance(key, int):
             return self.data[key]
@@ -42,8 +45,15 @@ class Sound:
     def length(self):
         return self.data.size
 
+    @property
+    def seconds(self):
+        return self.length / self.samplerate
+
     def copy(self):
-        return Sound(self.length, self.samplerate, data = self.data)
+        return Sound(length = self.length, data = self.data, samplerate = self.samplerate)
+
+    def sub_sound(self, start_index, end_index):
+        return Sound(data = self.data[start_index:end_index])
 
     def read(self, filename):
         with warnings.catch_warnings():
@@ -51,8 +61,8 @@ class Sound:
             self.samplerate, self.data = wavfile.read(filename + (".wav" if not filename.endswith(".wav") else ""))
         self.data = self.data.astype(np.float32)
         if self.data.ndim != 1:
-            print("Warning: flattening channels for", filename)
-            self.data = np.sum(self.data, 1)
+            print("Warning: flattening channels for ..." + filename[-20:])
+            self.data = np.sum(self.data, 1) / self.data.shape[1]
 
     def save(self, filename, clip = False):
         if not filename.endswith(".wav"):
@@ -125,6 +135,14 @@ class Sound:
     def triangle(self, frequency, amplitude = 1.):
         self.data += sig.sawtooth(np.arange(self.length) * tau * frequency / self.samplerate + np.pi / 2., .5) * amplitude
 
+    def chirp(self, freq_start, freq_end, exponent = 1., amplitude = 1.):
+        # y = sin(tau * (c * x^z + f0*x))
+        #     where c = (f1-f0) / ((z+1) * t^z))
+        c = (freq_end - freq_start) / ((exponent + 1) * self.seconds ** exponent)
+        x = np.linspace(0, self.seconds, self.length)
+        t = c * x ** (exponent + 1) + freq_start * x
+        self.data += np.sin(tau * t) * amplitude
+
     def noise(self, amplitude = 1.):
         self.data += np.random.default_rng().uniform(-1., 1., self.length) * amplitude
 
@@ -177,22 +195,14 @@ class Sound:
         self.data *= peak / self.amplitude
 
     def distort(self, threshold = 1.):
-        for i, sample in np.ndenumerate(self.data):
-            if sample > threshold:
-                self.data[i] = threshold
-            elif sample < -threshold:
-                self.data[i] = -threshold
+        self.data = np.clip(self.data, -threshold, threshold)
 
-    def bitcrush(self, bits = 8):
+    def bit_crush(self, bits = 8):
         factor = np.float32(1 << (bits - 1))
         self.data = np.round(self.data * factor) / factor
 
     def power(self, exponent = 1.):
-        for i, sample in np.ndenumerate(self.data):
-            if sample >= 0.:
-                self.data[i] = np.power(sample, exponent)
-            else:
-                self.data[i] = -np.power(-sample, exponent)
+        self.data = np.sign(self.data) * np.power(np.abs(self.data), exponent)
 
     def fade(self, start_index = 0, end_index = None, start_amp = 1., end_amp = 0., exponent = 1.):
         if start_index < 0:
@@ -212,10 +222,10 @@ class Sound:
 
     def stretch(self, factor = 1., in_place = True):
         if not in_place:
-            return Sound(samplerate = self.samplerate, data = sig.resample(self.data, int(self.length / factor)))
+            return Sound(data = sig.resample(self.data, int(self.length / factor)), samplerate = self.samplerate)
         self.data = sig.resample(self.data, int(self.length / factor))
 
-    def filter(self, cutoff, type_ = "lp", order = 2):
+    def filter(self, type_, cutoff, order = 2):
         if type_ not in ["lp", "hp", "bp", "bs"]:
             print("Invalid filter type:", type_)
             return
@@ -227,7 +237,7 @@ class Sound:
             kernel = response.ifft()
         else:
             kernel = Sound()
-            kernel.ifft(response)
+            kernel.ifft(np.array(response))
         self.convolve(kernel)
 
     def autotune(self, window_size = 7000):
@@ -244,20 +254,18 @@ class Sound:
             out.set_at(s, window_size * i)
         return out
 
-    def vocode(self, window_size = 7000, fade = 50):
-        #https://stackoverflow.com/a/23734295
+    def vocode(self, window_size = 7500, harmonics = 3, fade = 50):
         out = Sound(self.length)
         sliced = np.array_split(self.data, np.ceil(self.length / window_size))
         for i, part in enumerate(sliced):
-            s = Sound(data = part)
-            t = s.fft()
-            m = np.argmax(t)
-            t[:m] = 0
-            t[m + 1:] = 0
-            s.ifft(t)
-            s.fade(end_index = fade, start_amp = 0, end_amp = 1)
-            s.fade(start_index = s.length - fade)
-            out.set_at(s, window_size * i)
+            part_sound = Sound(data = part)
+            transform = part_sound.fft()
+            values_to_mute = np.argsort(np.abs(transform))[:-harmonics]
+            transform[values_to_mute] = 0
+            part_sound.ifft(transform)
+            part_sound.fade(end_index = fade, start_amp = 0, end_amp = 1)
+            part_sound.fade(start_index = part_sound.length - fade)
+            out.set_at(part_sound, window_size * i)
         return out
 
 from audio import utils
