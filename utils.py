@@ -18,15 +18,15 @@ def freq(notename):
     return C0 * twelvertwo ** (octave * 12. + key)
 
 def nearest(frequency):
-    key = round(np.log2(frequency / C0) * 12)
+    key = round(np.log2(frequency / C0) * 12.)
     return C0 * twelvertwo ** key
 
 def transpose(rootnote, newnote):
     return freq(newnote) / freq(rootnote)
 
 def note(frequency):
-    value = round(np.log2(frequency / C0) * 12.)
-    return f"{notes[value % 12]}{int(value // 12)}"
+    value = int(round(np.log2(frequency / C0) * 12.))
+    return f"{notes[value % 12.]}{int(value // 12)}"
 
 def todb(amplitude):
     if np.abs(amplitude) < .000016:
@@ -36,8 +36,8 @@ def todb(amplitude):
 def toamp(db):
     return 10. ** (db / 20.)
 
-def tosamples(bpm, beat, samplerate = 44100.):
-    return int(samplerate * 60. / bpm * bpm)
+def tosamples(bpm, beats, samplerate = 44100.):
+    return int(round(60 * samplerate * beats / bpm))
 
 def scale(rootnote, type = "major"):
     seq_major = [0, 2, 4, 5, 7, 9, 11]
