@@ -1,4 +1,4 @@
-#todo: Reverb/UI, autotune, better error messages
+#todo: Reverb/UI, autotune
 
 import os
 import warnings
@@ -26,7 +26,7 @@ class Sound:
             self.samplerate = samplerate
 
     def __repr__(self):
-        return f"Sound(length = {self.length}, samplerate = {self.samplerate})"
+        return f"audio.Sound(length = {self.length}, samplerate = {self.samplerate})"
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -50,10 +50,12 @@ class Sound:
         return self.length / self.samplerate
 
     def copy(self):
-        return Sound(length = self.length, data = self.data, samplerate = self.samplerate)
+        return Sound(data = self.data, samplerate = self.samplerate)
 
-    def sub_sound(self, start_index, end_index):
-        return Sound(data = self.data[start_index:end_index])
+    def sub_sound(self, start_index = 0, end_index = None):
+        if end_index is None:
+            end_index = self.length
+        return Sound(data = self.data[start_index:end_index], samplerate = self.samplerate)
 
     def read(self, filename):
         with warnings.catch_warnings():
@@ -61,8 +63,7 @@ class Sound:
             self.samplerate, self.data = wavfile.read(filename + (".wav" if not filename.endswith(".wav") else ""))
         self.data = self.data.astype(np.float32)
         if self.data.ndim != 1:
-            print("Warning: flattening channels for ..." + filename[-20:])
-            self.data = np.sum(self.data, 1) / self.data.shape[1]
+            self.data = np.mean(self.data, 1)
 
     def save(self, filename, clip = False):
         if not filename.endswith(".wav"):
@@ -74,14 +75,14 @@ class Sound:
     def play(self, sync = True):
         if os.name == "nt":
             self.save("__temp__.wav")
-            utils.playfile("__temp__.wav", sync)
+            utils.play_file("__temp__.wav", sync)
             os.remove("__temp__.wav")
         else:
-            print("Can only play on Windows")
+            print("Warning: Sound.play only works on Windows")
 
     def show(self):
         if os.name != "nt":
-            print("Can only show on Windows")
+            print("Warning: Sound.show only works on Windows")
             return
         plt.title("Sound")
         plt.xlabel("Time")
@@ -101,6 +102,7 @@ class Sound:
     @property
     def fundamental(self):
         transform = np.abs(self.fft())
+        transform[0] = 0
         return np.argmax(transform) / transform.size * self.samplerate / 2
 
     def show_fft(self):
@@ -108,7 +110,6 @@ class Sound:
         time_axis = np.linspace(0, 22050, transform.size)
         plt.xlabel("Frequency")
         plt.ylabel("Amplitude")
-        #plt.xscale("log")
         plt.plot(time_axis, transform)
         plt.show()
 
@@ -138,6 +139,7 @@ class Sound:
     def chirp(self, freq_start, freq_end, exponent = 1., amplitude = 1.):
         # y = sin(tau * (c * x^z + f0*x))
         #     where c = (f1-f0) / ((z+1) * t^z))
+        # frequency(x) = (f1-f0) * (x/t)^z + f0
         c = (freq_end - freq_start) / ((exponent + 1) * self.seconds ** exponent)
         x = np.linspace(0, self.seconds, self.length)
         t = c * x ** (exponent + 1) + freq_start * x
@@ -158,17 +160,18 @@ class Sound:
     def mute(self):
         self.data[:] = 0.
 
-    def trim_silence(self, threshold = 0.005):
+    def trim_silence(self, threshold = 0.01, start_only = False):
         start_index = 0
         for i in range(1, self.length):
             if np.abs(self.data[i]) > threshold:
                 start_index = i - 1
                 break
-        end_index = self.length - 1
-        for i in range(self.length - 2, 0, -1):
-            if np.abs(self.data[i] > threshold):
-                end_index = i + 1
-                break
+        end_index = self.length
+        if not start_only:
+            for i in range(self.length - 2, 0, -1):
+                if np.abs(self.data[i] > threshold):
+                    end_index = i + 1
+                    break
         self.data = self.data[start_index:end_index]
 
     def set_at(self, sound2, offset = 0, multiplier = 1.):
@@ -180,7 +183,8 @@ class Sound:
         try:
             self.data[offset:offset + limit] += sound2.data[:limit] * multiplier
         except:
-            print(self.length, offset, limit)
+            print("Debug", self.length, offset, limit)
+            raise ZeroDivisionError
 
     def invert(self):
         self.data = -self.data
@@ -193,6 +197,9 @@ class Sound:
 
     def normalize(self, peak = 1.):
         self.data *= peak / self.amplitude
+
+    def normalize_rms(self, peak = 1.):
+        self.data *= peak / self.rms
 
     def distort(self, threshold = 1.):
         self.data = np.clip(self.data, -threshold, threshold)
@@ -208,6 +215,9 @@ class Sound:
         if start_index < 0:
             start_index = 0
         end_index = end_index or self.length
+        if end_index > self.length: end_index = self.length
+        if start_index > end_index:
+            raise ValueError(f"start_index {start_index} is greater than end_index {end_index}")
         numsamples = end_index - start_index
         self.data[start_index:end_index] *= np.linspace(start_amp, end_amp, numsamples) ** exponent
 
@@ -227,7 +237,7 @@ class Sound:
 
     def filter(self, type_, cutoff, order = 2):
         if type_ not in ["lp", "hp", "bp", "bs"]:
-            print("Invalid filter type:", type_)
+            raise ValueError(f"Invalid filter type: \"{type_}\"")
             return
         sos = sig.butter(order, cutoff, type_, output = "sos", fs = self.samplerate)
         self.data = sig.sosfilt(sos, self.data)
@@ -246,7 +256,7 @@ class Sound:
         for i, part in enumerate(sliced):
             s = Sound(data = part)
             freq = s.fundamental
-            newfreq = utils.nearest(freq)
+            newfreq = utils.nearest_note_frequency(freq)
             factor = newfreq / freq
             s.stretch(factor)
             s.fade(end_index = 50, start_amp = 0, end_amp = 1)
