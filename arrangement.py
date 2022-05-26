@@ -16,9 +16,12 @@ class Arrangement(Pattern):
     def measures(self):
         return utils.samples_to_beats(self.bpm, self.length, self.samplerate) / self.beats_per_measure
 
-    def place_pattern(self, pattern, measure_location):
-        self.place(pattern, (measure_location - 1) * self.beats_per_measure + 1)
+    def place_pattern(self, pattern, measure_location, num_beats = None):
+        if num_beats is None:
+            self.place(pattern, (measure_location - 1) * self.beats_per_measure + 1)
+        else:
+            self.place(pattern.sub_pattern(1, num_beats), (measure_location - 1) * self.beats_per_measure + 1)
 
-    def repeat_pattern(self, pattern, start_measure, end_measure):
+    def repeat_pattern(self, pattern, start_measure, end_measure, multiplier = 1):
         repetitions = int((end_measure - start_measure + 1) / pattern.beats * self.beats_per_measure)
-        self.roll(pattern, (start_measure - 1) * self.beats_per_measure + 1, repetitions, pattern.beats)
+        self.roll(pattern, (start_measure - 1) * self.beats_per_measure + 1, repetitions, pattern.beats, multiplier)

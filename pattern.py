@@ -24,6 +24,8 @@ class Pattern(Sound):
         return out
 
     def place(self, sound, beat = 1, multiplier = 1, stretch = 1, cut = False):
+        if beat < 1 or beat > self.beats + 1:
+            return
         place_func = self.set_at if cut else self.add
         sample_index = utils.beats_to_samples(self.bpm, beat - 1, self.samplerate)
         sound2 = sound if stretch == 1. else sound.stretch(stretch, in_place = False)

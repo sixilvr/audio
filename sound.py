@@ -1,4 +1,4 @@
-#todo: Reverb/UI, autotune
+#todo: Reverb/UI, autotune, save as mp3, use magic methods
 
 import os
 import warnings
@@ -69,7 +69,7 @@ class Sound:
         if not filename.endswith(".wav"):
             filename += ".wav"
         if clip:
-            self.distort(1.)
+            self.distort(1)
         wavfile.write(filename, self.samplerate, self.data.astype(np.float32))
 
     def play(self, sync = True):
@@ -90,10 +90,10 @@ class Sound:
         plt.ylim(-1.1, 1.1)
         time = self.length / self.samplerate
         time_axis = np.linspace(0, time, self.length)
-        plt.plot(time_axis, self.data, linewidth = .75)
-        plt.plot([0., time], [0., 0.], "k--", linewidth = .5)
-        plt.plot([0., time], [1., 1.], "r--", linewidth = .5)
-        plt.plot([0., time], [-1., -1.], "r--", linewidth = .5)
+        plt.plot(time_axis, self.data, linewidth = 0.75)
+        plt.plot([0., time], [0., 0.], "k--", linewidth = 0.5)
+        plt.plot([0., time], [1, 1], "r--", linewidth = 0.5)
+        plt.plot([0., time], [-1, -1], "r--", linewidth = 0.5)
         plt.show()
 
     def fft(self):
@@ -124,19 +124,19 @@ class Sound:
     def rms(self):
         return np.sqrt(np.mean(np.square(self.data)))
 
-    def sine(self, frequency, amplitude = 1.):
+    def sine(self, frequency, amplitude = 1):
         self.data += np.sin(np.linspace(0, frequency * tau * self.length / self.samplerate, self.length)) * amplitude
 
-    def square(self, frequency, amplitude = 1.):
+    def square(self, frequency, amplitude = 1):
         self.data += sig.square(np.arange(self.length) * tau * frequency / self.samplerate) * amplitude
 
-    def sawtooth(self, frequency, amplitude = 1.):
+    def sawtooth(self, frequency, amplitude = 1):
         self.data += sig.sawtooth(np.arange(self.length) * tau * frequency / self.samplerate + np.pi) * amplitude
 
-    def triangle(self, frequency, amplitude = 1.):
-        self.data += sig.sawtooth(np.arange(self.length) * tau * frequency / self.samplerate + np.pi / 2., .5) * amplitude
+    def triangle(self, frequency, amplitude = 1):
+        self.data += sig.sawtooth(np.arange(self.length) * tau * frequency / self.samplerate + np.pi / 2, 0.5) * amplitude
 
-    def chirp(self, freq_start, freq_end, exponent = 1., amplitude = 1.):
+    def chirp(self, freq_start, freq_end, exponent = 1, amplitude = 1):
         # y = sin(tau * (c * x^z + f0*x))
         #     where c = (f1-f0) / ((z+1) * t^z))
         # frequency(x) = (f1-f0) * (x/t)^z + f0
@@ -145,8 +145,8 @@ class Sound:
         t = c * x ** (exponent + 1) + freq_start * x
         self.data += np.sin(tau * t) * amplitude
 
-    def noise(self, amplitude = 1.):
-        self.data += np.random.default_rng().uniform(-1., 1., self.length) * amplitude
+    def noise(self, amplitude = 1):
+        self.data += np.random.default_rng().uniform(-1, 1, self.length) * amplitude
 
     def resize(self, newsize):
         if newsize > self.length:
@@ -160,25 +160,26 @@ class Sound:
     def mute(self):
         self.data[:] = 0.
 
-    def trim_silence(self, threshold = 0.01, start_only = False):
+    def trim_silence(self, threshold = 0.01, start = True, end = True):
         start_index = 0
-        for i in range(1, self.length):
-            if np.abs(self.data[i]) > threshold:
-                start_index = i - 1
-                break
+        if start:
+            for i in range(1, self.length):
+                if np.abs(self.data[i]) > threshold:
+                    start_index = i - 1
+                    break
         end_index = self.length
-        if not start_only:
+        if end:
             for i in range(self.length - 2, 0, -1):
                 if np.abs(self.data[i] > threshold):
                     end_index = i + 1
                     break
         self.data = self.data[start_index:end_index]
 
-    def set_at(self, sound2, offset = 0, multiplier = 1.):
+    def set_at(self, sound2, offset = 0, multiplier = 1):
         limit = np.minimum(sound2.length, self.length - offset)
         self.data[offset:offset + limit] = sound2.data[:limit] * multiplier
 
-    def add(self, sound2, offset = 0, multiplier = 1.):
+    def add(self, sound2, offset = 0, multiplier = 1):
         limit = np.minimum(sound2.length, self.length - offset)
         try:
             self.data[offset:offset + limit] += sound2.data[:limit] * multiplier
@@ -195,23 +196,31 @@ class Sound:
     def amplify(self, factor):
         self.data *= factor
 
-    def normalize(self, peak = 1.):
+    def normalize(self, peak = 1):
         self.data *= peak / self.amplitude
 
-    def normalize_rms(self, peak = 1.):
+    def normalize_rms(self, peak = 1):
         self.data *= peak / self.rms
 
-    def distort(self, threshold = 1.):
+    def distort(self, threshold = 1):
         self.data = np.clip(self.data, -threshold, threshold)
+
+    def soft_clip(self, threshold = 1):
+        # y = -t, x <= -t
+        # y = (3x - x^3/t^2) / 2, -t < x < t
+        # y = t, x >= t
+        self.data = np.piecewise(self.data,
+            [self.data <= -threshold, np.logical_and(self.data > -threshold, self.data < threshold), self.data >= threshold],
+            [-threshold, lambda x: (3 * x - x ** 3 / threshold ** 2) / 2, threshold])
 
     def bit_crush(self, bits = 8):
         factor = np.float32(1 << (bits - 1))
         self.data = np.round(self.data * factor) / factor
 
-    def power(self, exponent = 1.):
+    def power(self, exponent = 1):
         self.data = np.sign(self.data) * np.power(np.abs(self.data), exponent)
 
-    def fade(self, start_index = 0, end_index = None, start_amp = 1., end_amp = 0., exponent = 1.):
+    def fade(self, start_index = 0, end_index = None, start_amp = 1, end_amp = 0., exponent = 1):
         if start_index < 0:
             start_index = 0
         end_index = end_index or self.length
@@ -222,7 +231,7 @@ class Sound:
         self.data[start_index:end_index] *= np.linspace(start_amp, end_amp, numsamples) ** exponent
 
     def mavg(self, amount = 2):
-        self.data = sig.convolve(self.data, np.repeat(1. / amount, amount))
+        self.data = sig.convolve(self.data, np.repeat(1 / amount, amount))
 
     def convolve(self, kernel):
         if isinstance(kernel, Sound):
@@ -230,7 +239,7 @@ class Sound:
         else:
             self.data = sig.convolve(self.data, kernel)
 
-    def stretch(self, factor = 1., in_place = True):
+    def stretch(self, factor = 1, in_place = True):
         if not in_place:
             return Sound(data = sig.resample(self.data, int(self.length / factor)), samplerate = self.samplerate)
         self.data = sig.resample(self.data, int(self.length / factor))
