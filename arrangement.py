@@ -14,7 +14,7 @@ class Arrangement(Pattern):
 
     @property
     def measures(self):
-        return utils.samples_to_beats(self.bpm, self.length, self.samplerate) / self.beats_per_measure
+        return utils.samples_to_beats(self.bpm, len(self), self.samplerate) / self.beats_per_measure
 
     def place_pattern(self, pattern, measure_location, num_beats = None):
         if num_beats is None:

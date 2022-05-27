@@ -14,7 +14,7 @@ class Pattern(Sound):
 
     @property
     def beats(self):
-        return utils.samples_to_beats(self.bpm, self.length, self.samplerate)
+        return utils.samples_to_beats(self.bpm, len(self), self.samplerate)
 
     def sub_pattern(self, start = 1, end = None):
         if end is None:
