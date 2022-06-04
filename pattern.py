@@ -4,13 +4,18 @@ from audio import Sound
 from audio import utils
 
 class Pattern(Sound):
-    def __init__(self, bpm = 120, num_beats = 8, samplerate = 44100):
+    def __init__(self, bpm = 120, num_beats = 8):
         self.bpm = bpm
-        self.samplerate = samplerate
-        self.data = np.zeros(utils.beats_to_samples(bpm, num_beats, samplerate), dtype = np.float32)
+        self.samplerate = 44100
+        self.data = np.zeros(utils.beats_to_samples(bpm, num_beats, 44100), dtype = np.float32)
 
     def __repr__(self):
-        return f"audio.Pattern(bpm = {self.bpm}, num_beats = {self.num_beats}, samplerate = {self.samplerate})"
+        return f"audio.Pattern(bpm = {self.bpm}, num_beats = {self.beats}, samplerate = {self.samplerate})"
+
+    def copy(self):
+        out = Pattern(self.bpm, self.beats)
+        out.data = self.data
+        return out
 
     @property
     def beats(self):
@@ -37,9 +42,9 @@ class Pattern(Sound):
         for i in range(amount):
             self.place(sound, beat + i * interval, multiplier, cut = cut)
 
-    def place_pattern(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = "C4", rest_char = 0):
+    def place_notes(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = "C4", rest_char = 0):
         if len(pattern) * beat_size != self.beats:
-            raise ValueError(f"Invalid pattern length: expected {self.beats}, got {len(pattern) * beat_size} with beat size {beat_size}")
+            raise ValueError(f"Invalid pattern length: this pattern is {self.beats}, but got {len(pattern) * beat_size} with beat size {beat_size}")
         for i in range(int(self.beats / beat_size)):
             if pattern[i] != rest_char:
                 if pattern[i] == root_note:
@@ -48,7 +53,7 @@ class Pattern(Sound):
                     self.place(sound, beat_size * i + 1, multiplier, utils.transpose_factor(root_note, pattern[i]), cut)
 
     def place_midi(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = 60):
-        self.place_pattern(sound, [utils.midi_to_note(i) if i != 0 else 0 for i in pattern], beat_size, cut, multiplier, utils.midi_to_note(root_note))
+        self.place_notes(sound, [utils.midi_to_note(i) if i != 0 else 0 for i in pattern], beat_size, cut, multiplier, utils.midi_to_note(root_note))
 
     def mute(self, startbeat = 1, endbeat = None):
         if endbeat is None:

@@ -5,8 +5,8 @@ from audio import Pattern
 from audio import utils
 
 class Arrangement(Pattern):
-    def __init__(self, bpm, num_measures, beats_per_measure = 4, samplerate = 44100):
-        super().__init__(bpm, num_measures * beats_per_measure, samplerate)
+    def __init__(self, bpm, num_measures, beats_per_measure = 4):
+        super().__init__(bpm, num_measures * beats_per_measure, 44100)
         self.beats_per_measure = beats_per_measure
 
     def __repr__(self):

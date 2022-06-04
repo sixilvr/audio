@@ -250,6 +250,8 @@ class Sound:
 
     def stretch(self, factor = 1, in_place = True):
         if not in_place:
+            if factor == 1:
+                return self
             return Sound(data = sig.resample(self.data, int(len(self) / factor)), samplerate = self.samplerate)
         self.data = sig.resample(self.data, int(len(self) / factor))
 
