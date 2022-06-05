@@ -19,3 +19,4 @@ x = a.Sound(data = sine_wave_data)
 
 #creating a new Sound using the number of samples
 x = a.Sound(44100) # sound is initialized to 44100 samples with a value of 0
+```
