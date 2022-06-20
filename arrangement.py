@@ -1,8 +1,8 @@
 import numpy as np
 
-from audio import Sound
-from audio import Pattern
-from audio import utils
+from . import Sound
+from . import Pattern
+from . import utils
 
 class Arrangement(Pattern):
     def __init__(self, bpm, num_measures, beats_per_measure = 4):
