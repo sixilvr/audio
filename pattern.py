@@ -1,7 +1,7 @@
 import numpy as np
 
-from audio import Sound
-from audio import utils
+from . import Sound
+from . import utils
 
 class Pattern(Sound):
     def __init__(self, bpm = 120, num_beats = 8):
@@ -54,6 +54,15 @@ class Pattern(Sound):
 
     def place_midi(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = 60):
         self.place_notes(sound, [utils.midi_to_note(i) if i != 0 else 0 for i in pattern], beat_size, cut, multiplier, utils.midi_to_note(root_note))
+
+    def place_hits(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, hit_char = "1"):
+        if len(pattern) * beat_size != self.beats:
+            raise ValueError(f"Invalid pattern length: this pattern is {self.beats}, but got {len(pattern) * beat_size} with beat size {beat_size}")
+        if pattern == "0" * 16:
+            return
+        for i in range(int(self.beats / beat_size)):
+            if pattern[i] == hit_char:
+                self.place(sound, beat_size * i + 1, multiplier, cut = cut)
 
     def mute(self, startbeat = 1, endbeat = None):
         if endbeat is None:
