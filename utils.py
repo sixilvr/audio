@@ -7,7 +7,7 @@ import time
 import re
 import numpy as np
 
-from audio.sound import Sound
+from .sound import Sound
 
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -39,7 +39,7 @@ def frequency_to_note(frequency):
 def transpose_factor(root_note, new_note):
     return note_to_frequency(new_note) / note_to_frequency(root_note)
 
-def nearest_note_frequency(frequency):
+def round_frequency(frequency):
     return midi_to_frequency(frequency_to_midi(frequency))
 
 def amplitude_to_db(amplitude):
