@@ -11,6 +11,7 @@ else:
 import numpy as np
 from scipy.io import wavfile
 from scipy import signal as sig
+import pydub
 
 tau = np.pi * 2
 
@@ -65,10 +66,10 @@ class Sound:
             self.data = np.mean(self.data, 1)
 
     def save(self, filename, clip = False):
-        if not filename.endswith(".wav"):
-            filename += ".wav"
         if clip:
             self.distort(1)
+        if not filename.endswith(".wav"):
+            filename += ".wav"
         wavfile.write(filename, self.samplerate, self.data.astype(np.float32))
 
     def play(self, sync = True):
@@ -184,8 +185,9 @@ class Sound:
         return out
 
     def __mul__(self, factor):
-        out = self.copy()
-        out.amplify(factor)
+        if factor == 1:
+            return self.copy()
+        out = Sound(data = self.data * factor, samplerate = self.samplerate)
         return out
 
     def add(self, sound2, offset = 0, multiplier = 1):
@@ -258,7 +260,6 @@ class Sound:
     def filter(self, type_, cutoff, order = 2):
         if type_ not in ["lp", "hp", "bp", "bs"]:
             raise ValueError(f"Invalid filter type: \"{type_}\"")
-            return
         sos = sig.butter(order, cutoff, type_, output = "sos", fs = self.samplerate)
         self.data = sig.sosfilt(sos, self.data)
 
@@ -298,4 +299,4 @@ class Sound:
             out.set_at(part_sound, window_size * i)
         return out
 
-from audio import utils
+from . import utils
