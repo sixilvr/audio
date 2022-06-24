@@ -44,7 +44,7 @@ class Pattern(Sound):
 
     def place_notes(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = "C4", rest_char = 0):
         if len(pattern) * beat_size != self.beats:
-            raise ValueError(f"Invalid pattern length: this pattern is {self.beats}, but got {len(pattern) * beat_size} with beat size {beat_size}")
+            raise ValueError(f"Invalid pattern length: expected {self.beats * beat_size}, but got {len(pattern) * beat_size}")
         for i in range(int(self.beats / beat_size)):
             if pattern[i] != rest_char:
                 if pattern[i] == root_note:
