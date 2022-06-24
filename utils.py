@@ -9,7 +9,9 @@ import numpy as np
 
 from .sound import Sound
 
-notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+MAJOR_SCALE = np.array([0, 2, 4, 5, 7, 9, 11, 12])
+MINOR_SCALE = np.array([0, 2, 3, 5, 7, 8, 11, 12])
 
 note_regex = re.compile(r"[A-G]#?\d")
 
@@ -23,12 +25,12 @@ def note_to_midi(note):
     if not re.match(note_regex, note):
         raise ValueError(f"Invalid note name: {note}")
     octave = int(note[-1])
-    key = notes.index(note[:-1])
+    key = NOTES.index(note[:-1])
     return 12 * (octave + 1) + key
 
 def midi_to_note(midi):
     octave, key = divmod(midi, 12)
-    return notes[key] + str(octave - 1)
+    return NOTES[key] + str(octave - 1)
 
 def note_to_frequency(note):
     return midi_to_frequency(note_to_midi(note))
@@ -56,19 +58,19 @@ def beats_to_samples(bpm, beats, samplerate = 44100):
 def samples_to_beats(bpm, samples, samplerate = 44100):
     return int(round(samples * bpm / samplerate / 60))
 
-def scale(rootnote, type_ = "major"):
-    if type_ not in ["major", "minor"]:
-        raise ValueError(f"Expected scale type \"major\" or \"minor\", got {type_}")
+def scale(rootnote, quality = "major"):
+    if quality not in ["major", "minor"]:
+        raise ValueError(f"Expected scale type \"major\" or \"minor\", got {quality}")
     seq_major = [0, 2, 4, 5, 7, 9, 11]
     seq_minor = [0, 2, 3, 5, 7, 8, 10]
-    start = notes.index(rootnote)
-    out = map(lambda n: notes[(start + n) % len(notes)], seq_major if type_ == "major" else seq_minor)
+    start = NOTES.index(rootnote)
+    out = map(lambda n: NOTES[(start + n) % len(NOTES)], seq_major if quality == "major" else seq_minor)
     return list(out)
 
 def chord(scale, order = 1, amount = 3):
     out = [scale[(order - 1) % len(scale)]]
-    for i in range(amount - 1):
-        out.append(scale[(order + 1 + i * 2) % len(scale)])
+    for i in range(1, amount):
+        out.append(scale[(order + i * 2) % len(scale)])
     return out
 
 def plot(*data):
@@ -89,7 +91,7 @@ def tempo_tapper(limit = 10, amount = 8):
     times = np.zeros(amount)
     print(f"Press enter for each beat, {limit} times")
     last_time = time.monotonic()
-    for i in range(limit):
+    for _ in range(limit):
         input()
         times = np.roll(times, -1)
         times[-1] = time.monotonic() - last_time
@@ -126,5 +128,9 @@ def tone(freq = 440., numsamples = 22050, amplitude = 0.75):
 
 def play_tone(freq = 440, numsamples = 22050, amplitude = 0.75):
     out = tone(freq, numsamples, amplitude)
+    out.play()
+
+def play_data(data):
+    out = np.Sound(data = data)
     out.play()
 
