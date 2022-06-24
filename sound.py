@@ -1,17 +1,13 @@
-#todo: Reverb/UI, autotune, save as mp3, use magic methods
+#todo: reverb, autotune, save as mp3, arrangement notation pattern
 
 import os
 import warnings
 if os.name == "nt":
-    import winsound
     import matplotlib.pyplot as plt
-    from scipy.fft import rfft, irfft
-else:
-    from scipy.fftpack import rfft, irfft
+from scipy.fftpack import rfft, irfft
 import numpy as np
 from scipy.io import wavfile
 from scipy import signal as sig
-import pydub
 
 tau = np.pi * 2
 
@@ -102,8 +98,12 @@ class Sound:
     @property
     def fundamental(self):
         transform = np.abs(self.fft())
-        transform[0] = 0
-        return np.argmax(transform) / transform.size * self.samplerate / 2
+        threshold = max(transform) / 4
+        for i in range(1, len(self)):
+            if (transform[i] > transform[i - 1]) and (transform[i] > transform[i + 1]):
+                if transform[i] > threshold:
+                    return i / transform.size * self.samplerate / 2
+        raise ZeroDivisionError
 
     def show_fft(self):
         transform = np.abs(self.fft()) / (len(self) * 2)
