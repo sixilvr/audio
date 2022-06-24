@@ -42,15 +42,15 @@ class Pattern(Sound):
         for i in range(amount):
             self.place(sound, beat + i * interval, multiplier, cut = cut)
 
-    def place_notes(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = "C4", rest_char = 0):
-        if len(pattern) * beat_size != self.beats:
-            raise ValueError(f"Invalid pattern length: expected {self.beats * beat_size}, but got {len(pattern) * beat_size}")
+    def place_notes(self, sound, notes, beat_size = 0.5, cut = False, multiplier = 1, root_note = "C4", rest_char = 0):
+        if len(notes) * beat_size != self.beats:
+            raise ValueError(f"Invalid pattern length: expected {int(self.beats * beat_size)}, but got {int(len(notes) * beat_size)}")
         for i in range(int(self.beats / beat_size)):
-            if pattern[i] != rest_char:
-                if pattern[i] == root_note:
+            if notes[i] != rest_char:
+                if notes[i] == root_note:
                     self.place(sound, beat_size * i + 1, multiplier, cut = cut)
                 else:
-                    self.place(sound, beat_size * i + 1, multiplier, utils.transpose_factor(root_note, pattern[i]), cut)
+                    self.place(sound, beat_size * i + 1, multiplier, utils.transpose_factor(root_note, notes[i]), cut)
 
     def place_midi(self, sound, pattern, beat_size = 0.5, cut = False, multiplier = 1, root_note = 60):
         self.place_notes(sound, [utils.midi_to_note(i) if i != 0 else 0 for i in pattern], beat_size, cut, multiplier, utils.midi_to_note(root_note))
