@@ -6,5 +6,6 @@ setup(name = "audio",
     author = "SL",
     url = "https://github.com/sixilvr/audio",
     packages = ["audio"],
-    requires = ["numpy", "scipy", "matplotlib"]
+    requires = ["numpy", "scipy", "matplotlib"],
+    provides = ["beatgen"]
 )
