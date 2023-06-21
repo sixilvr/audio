@@ -131,6 +131,5 @@ def play_tone(freq = 440, numsamples = 22050, amplitude = 0.75):
     out.play()
 
 def play_data(data):
-    out = np.Sound(data = data)
+    out = Sound(data = data)
     out.play()
-

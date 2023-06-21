@@ -1,4 +1,4 @@
-#todo: reverb, autotune, save as mp3, arrangement notation pattern
+#todo: reverb, autotune, save as mp3, arrangement notation pattern, cepstrum for fundamental
 
 import os
 import warnings
@@ -16,7 +16,7 @@ class Sound:
         if file:
             self.read(file)
         elif data is not None:
-            self.data = data.astype(np.float32)
+            self.data = np.array(data, dtype = "float32")
             self.samplerate = samplerate
         else:
             self.data = np.zeros(length, dtype = np.float32)
@@ -72,7 +72,8 @@ class Sound:
         if os.name == "nt":
             self.save("__temp__.wav")
             utils.play_file("__temp__.wav", sync)
-            os.remove("__temp__.wav")
+            if sync:
+                os.remove("__temp__.wav")
         else:
             print("Warning: Sound.play only works on Windows")
 
@@ -97,6 +98,7 @@ class Sound:
 
     @property
     def fundamental(self):
+        # maybe use cepstrum?
         transform = np.abs(self.fft())
         threshold = max(transform) / 4
         for i in range(1, len(self)):
@@ -125,16 +127,20 @@ class Sound:
         return np.sqrt(np.mean(np.square(self.data)))
 
     def sine(self, frequency, amplitude = 1):
-        self.data += np.sin(np.linspace(0, frequency * tau * len(self) / self.samplerate, len(self))) * amplitude
+        self.data += np.sin(
+            np.linspace(0,frequency * 2 * np.pi * len(self) / self.samplerate, len(self))) * amplitude
 
     def square(self, frequency, amplitude = 1):
-        self.data += sig.square(np.arange(len(self)) * tau * frequency / self.samplerate) * amplitude
+        self.data += sig.square(
+            np.arange(len(self)) * 2 * np.pi * frequency / self.samplerate) * amplitude
 
     def sawtooth(self, frequency, amplitude = 1):
-        self.data += sig.sawtooth(np.arange(len(self)) * tau * frequency / self.samplerate + np.pi) * amplitude
+        self.data += sig.sawtooth(
+            np.arange(len(self)) * 2 * np.pi * frequency / self.samplerate + np.pi) * amplitude
 
     def triangle(self, frequency, amplitude = 1):
-        self.data += sig.sawtooth(np.arange(len(self)) * tau * frequency / self.samplerate + np.pi / 2, 0.5) * amplitude
+        self.data += sig.sawtooth(
+            np.arange(len(self)) * 2 * np.pi * frequency / self.samplerate + np.pi / 2, 0.5) * amplitude
 
     def chirp(self, freq_start, freq_end, exponent = 1, amplitude = 1):
         # y = sin(tau * (c * x^z + f0*x))
@@ -156,6 +162,9 @@ class Sound:
 
     def append(self, sound2):
         self.data = np.append(self.data, sound2.data)
+
+    def repeat(self, amount = 1):
+        self.data = np.tile(self.data, amount)
 
     def mute(self):
         self.data[:] = 0.
@@ -208,7 +217,9 @@ class Sound:
         self.data *= factor
 
     def normalize(self, peak = 1):
-        self.data *= peak / self.amplitude
+        amplitude = self.amplitude
+        if amplitude != 0:
+            self.data *= peak / amplitude
 
     def normalize_rms(self, peak = 1):
         self.data *= peak / self.rms
@@ -270,6 +281,14 @@ class Sound:
             kernel = Sound()
             kernel.ifft(np.array(response))
         self.convolve(kernel)
+
+    def fft_filter(self, pass_low, pass_high):
+        bin_low = round(pass_low / self.samplerate * len(self) * 2)
+        bin_high = round(pass_high / self.samplerate * len(self) * 2)
+        ft = self.fft()
+        ft[:bin_low] = 0
+        ft[bin_high:] = 0
+        self.ifft(ft)
 
     def autotune(self, window_size = 7000):
         out = Sound(len(self))

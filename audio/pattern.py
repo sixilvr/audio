@@ -69,5 +69,5 @@ class Pattern(Sound):
             endbeat = self.beats
         self.data[utils.beats_to_samples(self.bpm, startbeat - 1, self.samplerate):utils.beats_to_samples(self.bpm, endbeat, self.samplerate)] = 0
 
-    def repeat(self, amount = 1):
-        self.data = np.tile(self.data, amount)
+    def half_time(self, interval = 8):
+        pass # TODO
