@@ -27,7 +27,10 @@ class Sound:
 
     def __getitem__(self, key):
         if isinstance(key, int):
-            return self.data[key]
+            if key < 0:
+                return 0.
+            else:
+                return self.data[key]
         elif isinstance(key, float):
             whole, frac = divmod(key, 1)
             whole = int(whole)
