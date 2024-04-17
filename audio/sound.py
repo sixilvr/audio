@@ -12,6 +12,7 @@ from scipy import signal as sig
 tau = np.pi * 2
 
 class Sound:
+
     def __init__(self, length = 44100, file = None, data = None, samplerate = 44100):
         if file:
             self.read(file)
@@ -19,7 +20,7 @@ class Sound:
             self.data = np.array(data, dtype = "float32")
             self.samplerate = samplerate
         else:
-            self.data = np.zeros(length, dtype = np.float32)
+            self.data = np.zeros(int(length), dtype = np.float32)
             self.samplerate = samplerate
 
     def __repr__(self):
@@ -108,7 +109,7 @@ class Sound:
             if (transform[i] > transform[i - 1]) and (transform[i] > transform[i + 1]):
                 if transform[i] > threshold:
                     return i / transform.size * self.samplerate / 2
-        raise ZeroDivisionError
+        raise ZeroDivisionError # because idk what went wrong
 
     def show_fft(self):
         transform = np.abs(self.fft()) / (len(self) * 2)
@@ -260,9 +261,8 @@ class Sound:
 
     def convolve(self, kernel):
         if isinstance(kernel, Sound):
-            self.data = sig.convolve(self.data, kernel.data)
-        else:
-            self.data = sig.convolve(self.data, kernel)
+            kernel = kernel.data
+        self.data = sig.convolve(self.data, kernel)
 
     def stretch(self, factor = 1, in_place = True):
         if not in_place:
@@ -292,6 +292,40 @@ class Sound:
         ft[:bin_low] = 0
         ft[bin_high:] = 0
         self.ifft(ft)
+
+    def reverb(self, delay_time = 0.1, decay = 0.7, mix = 1.):
+        # Adapted from https://github.com/Rishikeshdaoo/Reverberator
+
+        delay = int(delay_time * self.samplerate)
+
+        c1 = utils.comb(self, decay, delay)
+        c2 = utils.comb(self, decay - 0.1337, delay - 401)
+        c3 = utils.comb(self, decay - 0.2718, delay + 801)
+        c4 = utils.comb(self, decay - 0.3141, delay + 252)
+        c = (c1 + c2 + c3 + c4) * 0.25
+
+        a0 = utils.allpass(c, 0.7, 1051)
+        a1 = utils.allpass(a0, 0.7, 337)
+        a2 = utils.allpass(a1, 0.7, 113)
+
+        self.amplify(1 - mix)
+        self.add(a2 * mix)
+
+    def conv_reverb(self, delay_time = 0.1, decay = 0.7, mix = 1.):
+        # May be faster than reverb() for longer sounds
+
+        impulse = Sound(self.samplerate * 1.5) # 1.5 seconds is long enough
+        for i in range(25):
+            impulse[i] = 1 / (i + 1)
+
+        impulse.reverb(delay_time, decay, 1.)
+        impulse.normalize()
+
+        wet = self.copy()
+        wet.convolve(impulse)
+        wet = wet * 0.4
+        self.amplify(1 - mix)
+        self.add(wet * mix)
 
     def autotune(self, window_size = 7000):
         out = Sound(len(self))

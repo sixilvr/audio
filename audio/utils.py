@@ -73,6 +73,18 @@ def chord(scale, order = 1, amount = 3):
         out.append(scale[(order + i * 2) % len(scale)])
     return out
 
+def comb(snd, gain, delay):
+    out = snd.copy()
+    for i in range(len(snd)):
+        out[i] = snd[i] + gain * out[i - delay]
+    return out
+
+def allpass(snd, gain, delay):
+    out = snd.copy()
+    for i in range(len(snd)):
+        out[i] = (-gain * snd[i]) + snd[i - delay] + (gain * out[i - delay])
+    return out
+
 def plot(*data):
     for sound in data:
         if isinstance(sound, Sound):

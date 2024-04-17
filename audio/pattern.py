@@ -4,7 +4,10 @@ from . import Sound
 from . import utils
 
 class Pattern(Sound):
+    # A Sound with additional methods for composing patterns
+    
     def __init__(self, bpm = 120, num_beats = 8):
+        # beats indexed from 1
         self.bpm = bpm
         self.samplerate = 44100
         self.data = np.zeros(utils.beats_to_samples(bpm, num_beats, 44100), dtype = np.float32)
