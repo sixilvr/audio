@@ -1,4 +1,4 @@
-#todo: reverb, autotune, save as mp3, arrangement notation pattern, cepstrum for fundamental
+#todo: autotune, save as mp3, arrangement notation pattern, cepstrum for fundamental
 
 import os
 import warnings
@@ -158,6 +158,17 @@ class Sound:
     def noise(self, amplitude = 1):
         self.data += np.random.default_rng().uniform(-1, 1, len(self)) * amplitude
 
+    def polygon(self, frequency, amplitude, num_sides, phase_shift = 0):
+        # https://www.desmos.com/calculator/cgvpvyoqgl
+        angle = 2 * np.pi / num_sides
+        p = phase_shift * angle
+        t = 2 * np.pi * frequency * np.linspace(0, len(self) / 44100, len(self))
+        u = 1 / np.tan(np.pi / num_sides)
+        v = (t + p) % (angle)
+        r = u / (np.sin(v) + u * np.cos(v))
+        s = r * np.sin(t)
+        self.data = s * amplitude
+
     def resize(self, newsize):
         if newsize > len(self):
             self.data = np.pad(self.data, (0, newsize - len(self)))
@@ -278,6 +289,7 @@ class Sound:
         self.data = sig.sosfilt(sos, self.data)
 
     def filter_curve(self, response):
+        # not perfect...
         if isinstance(response, Sound):
             kernel = response.ifft()
         else:

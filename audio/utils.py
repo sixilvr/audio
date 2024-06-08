@@ -133,6 +133,13 @@ def extract_frequencies(sound, window_size = 5000, tolerance = 10.):
         freqs[i] = np.argmax(transform) / len(transform) * sound.samplerate
     return freqs
 
+def find_peaks(arr):
+    peaks = []
+    for i in range(1, len(arr) - 1):
+        if arr[i] > arr[i - 1] and arr[i] > arr[i + 1]:
+            peaks.append(i)
+    return peaks
+
 def tone(freq = 440., numsamples = 22050, amplitude = 0.75):
     out = Sound(numsamples)
     out.sine(freq, amplitude)

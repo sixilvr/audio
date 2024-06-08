@@ -32,6 +32,7 @@ class Pattern(Sound):
         return out
 
     def place(self, sound, beat = 1, multiplier = 1, stretch = 1, cut = False):
+        # TODO: accept sequence for beat?
         if beat < 1 or beat > self.beats + 1:
             return
         place_func = self.set_at if cut else self.add
