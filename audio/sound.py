@@ -4,7 +4,7 @@ import os
 import warnings
 if os.name == "nt":
     import matplotlib.pyplot as plt
-from scipy.fftpack import rfft, irfft
+from scipy.fft import rfft, irfft
 import numpy as np
 from scipy.io import wavfile
 from scipy import signal as sig
@@ -53,9 +53,12 @@ class Sound:
         return Sound(data = self.data, samplerate = self.samplerate)
 
     def sub_sound(self, start_index = 0, end_index = None):
+        # if end_index > len(self), end_index = len(self) because of how slicing works
         if end_index is None:
             end_index = len(self)
-        return Sound(data = self.data[start_index:end_index], samplerate = self.samplerate)
+        if start_index > end_index:
+            raise ValueError(f"start_index {start_index} is greater than end_index {end_index}")
+        return Sound(data = self.data[start_index : end_index], samplerate = self.samplerate)
 
     def read(self, filename):
         with warnings.catch_warnings():
@@ -100,27 +103,36 @@ class Sound:
     def fft(self):
         return rfft(self.data)
 
+    def ifft(self, transform):
+        self.data = irfft(transform)
+
+    def norm_fft(self):
+        # returns simple frequency spectrum
+        # x[0] = DC, x[-1] = Nyquist frequency
+        # output values = amplitude of frequency
+        transform = np.abs(self.fft()) / len(self) # normalize fft
+        transform[1:] *= 2 # scale except DC component
+        return transform
+
     @property
     def fundamental(self):
         # maybe use cepstrum?
+        # currently, finds first spectrum peak greater than 1/4 of highest peak
         transform = np.abs(self.fft())
         threshold = max(transform) / 4
-        for i in range(1, len(self)):
+        for i in range(1, len(self)): # exclude DC component
             if (transform[i] > transform[i - 1]) and (transform[i] > transform[i + 1]):
                 if transform[i] > threshold:
                     return i / transform.size * self.samplerate / 2
         raise ZeroDivisionError # because idk what went wrong
 
     def show_fft(self):
-        transform = np.abs(self.fft()) / (len(self) * 2)
+        transform = self.norm_fft()
         time_axis = np.linspace(0, 22050, transform.size)
         plt.xlabel("Frequency")
         plt.ylabel("Amplitude")
         plt.plot(time_axis, transform)
         plt.show()
-
-    def ifft(self, transform):
-        self.data = irfft(transform)
 
     @property
     def amplitude(self):
@@ -132,7 +144,7 @@ class Sound:
 
     def sine(self, frequency, amplitude = 1):
         self.data += np.sin(
-            np.linspace(0,frequency * 2 * np.pi * len(self) / self.samplerate, len(self))) * amplitude
+            np.linspace(0, frequency * 2 * np.pi * len(self) / self.samplerate, len(self))) * amplitude
 
     def square(self, frequency, amplitude = 1):
         self.data += sig.square(
@@ -267,7 +279,8 @@ class Sound:
         numsamples = end_index - start_index
         self.data[start_index:end_index] *= np.linspace(start_amp, end_amp, numsamples) ** exponent
 
-    def mavg(self, amount = 2):
+    def moving_average(self, amount = 2):
+        # problem with padding? extra length added
         self.data = sig.convolve(self.data, np.repeat(1 / amount, amount))
 
     def convolve(self, kernel):
@@ -298,6 +311,7 @@ class Sound:
         self.convolve(kernel)
 
     def fft_filter(self, pass_low, pass_high):
+        # brickwall bandpass filter using fft
         bin_low = round(pass_low / self.samplerate * len(self) * 2)
         bin_high = round(pass_high / self.samplerate * len(self) * 2)
         ft = self.fft()
@@ -325,6 +339,7 @@ class Sound:
 
     def conv_reverb(self, delay_time = 0.1, decay = 0.7, mix = 1.):
         # May be faster than reverb() for longer sounds
+        # Create an impulse, apply reverb(), convolve with sound
 
         impulse = Sound(self.samplerate * 1.5) # 1.5 seconds is long enough
         for i in range(25):

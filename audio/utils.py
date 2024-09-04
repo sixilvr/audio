@@ -140,13 +140,13 @@ def find_peaks(arr):
             peaks.append(i)
     return peaks
 
-def tone(freq = 440., numsamples = 22050, amplitude = 0.75):
-    out = Sound(numsamples)
+def tone(freq = 440., num_samples = 22050, amplitude = 0.75):
+    out = Sound(num_samples)
     out.sine(freq, amplitude)
     return out
 
-def play_tone(freq = 440, numsamples = 22050, amplitude = 0.75):
-    out = tone(freq, numsamples, amplitude)
+def play_tone(freq = 440, num_samples = 22050, amplitude = 0.75):
+    out = tone(freq, num_samples, amplitude)
     out.play()
 
 def play_data(data):
