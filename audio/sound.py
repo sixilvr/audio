@@ -128,7 +128,7 @@ class Sound:
 
     def show_fft(self):
         transform = self.norm_fft()
-        time_axis = np.linspace(0, 22050, transform.size)
+        time_axis = np.linspace(0, self.samplerate / 2, transform.size)
         plt.xlabel("Frequency")
         plt.ylabel("Amplitude")
         plt.plot(time_axis, transform)
@@ -174,7 +174,7 @@ class Sound:
         # https://www.desmos.com/calculator/cgvpvyoqgl
         angle = 2 * np.pi / num_sides
         p = phase_shift * angle
-        t = 2 * np.pi * frequency * np.linspace(0, len(self) / 44100, len(self))
+        t = 2 * np.pi * frequency * np.linspace(0, len(self) / self.samplerate, len(self))
         u = 1 / np.tan(np.pi / num_sides)
         v = (t + p) % (angle)
         r = u / (np.sin(v) + u * np.cos(v))
@@ -279,6 +279,13 @@ class Sound:
         numsamples = end_index - start_index
         self.data[start_index:end_index] *= np.linspace(start_amp, end_amp, numsamples) ** exponent
 
+    def stretch(self, factor = 1, in_place = True):
+        if not in_place:
+            if factor == 1:
+                return self
+            return Sound(data = sig.resample(self.data, int(len(self) / factor)), samplerate = self.samplerate)
+        self.data = sig.resample(self.data, int(len(self) / factor))
+
     def moving_average(self, amount = 2):
         # problem with padding? extra length added
         self.data = sig.convolve(self.data, np.repeat(1 / amount, amount))
@@ -287,13 +294,6 @@ class Sound:
         if isinstance(kernel, Sound):
             kernel = kernel.data
         self.data = sig.convolve(self.data, kernel)
-
-    def stretch(self, factor = 1, in_place = True):
-        if not in_place:
-            if factor == 1:
-                return self
-            return Sound(data = sig.resample(self.data, int(len(self) / factor)), samplerate = self.samplerate)
-        self.data = sig.resample(self.data, int(len(self) / factor))
 
     def filter(self, type_, cutoff, order = 2):
         if type_ not in ["lp", "hp", "bp", "bs"]:
@@ -310,10 +310,14 @@ class Sound:
             kernel.ifft(np.array(response))
         self.convolve(kernel)
 
-    def fft_filter(self, pass_low, pass_high):
+    def fft_filter(self, pass_low = None, pass_high = None):
         # brickwall bandpass filter using fft
-        bin_low = round(pass_low / self.samplerate * len(self) * 2)
-        bin_high = round(pass_high / self.samplerate * len(self) * 2)
+        if pass_low is None:
+            pass_low = 0
+        if pass_high is None:
+            pass_high = self.samplerate / 2
+        bin_low = round(pass_low / self.samplerate * len(self))
+        bin_high = round(pass_high / self.samplerate * len(self))
         ft = self.fft()
         ft[:bin_low] = 0
         ft[bin_high:] = 0
