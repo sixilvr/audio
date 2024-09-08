@@ -120,7 +120,7 @@ class Sound:
         # currently, finds first spectrum peak greater than 1/4 of highest peak
         transform = np.abs(self.fft())
         threshold = max(transform) / 4
-        for i in range(1, len(self)): # exclude DC component
+        for i in range(1, len(transform)): # exclude DC component
             if (transform[i] > transform[i - 1]) and (transform[i] > transform[i + 1]):
                 if transform[i] > threshold:
                     return i / transform.size * self.samplerate / 2
