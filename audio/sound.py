@@ -30,7 +30,7 @@ class Sound:
         # Access samples with Sound[i]
         # If i < 0 or i > len(Sound), returns 0
         # If i is a float, linearly interpolates
-        if key < 0 or key > len(self):
+        if key < 0 or key >= len(self):
             return 0.
         elif isinstance(key, int):
             return self.data[key]
