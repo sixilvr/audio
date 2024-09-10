@@ -1,4 +1,4 @@
-#todo: autotune, save as mp3, arrangement notation pattern, cepstrum for fundamental
+#todo: autotune, save as mp3, arrangement notation pattern, cepstrum for fundamental, spectrogram
 
 import os
 import warnings
@@ -27,11 +27,13 @@ class Sound:
         return f"audio.Sound(length = {len(self)}, samplerate = {self.samplerate})"
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            if key < 0:
-                return 0.
-            else:
-                return self.data[key]
+        # Access samples with Sound[i]
+        # If i < 0 or i > len(Sound), returns 0
+        # If i is a float, linearly interpolates
+        if key < 0 or key > len(self):
+            return 0.
+        elif isinstance(key, int):
+            return self.data[key]
         elif isinstance(key, float):
             whole, frac = divmod(key, 1)
             whole = int(whole)
@@ -302,7 +304,7 @@ class Sound:
         self.data = sig.sosfilt(sos, self.data)
 
     def filter_curve(self, response):
-        # not perfect...
+        # not perfect...creates wavy response
         if isinstance(response, Sound):
             kernel = response.ifft()
         else:
